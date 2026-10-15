@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phantom — Rust Devblog</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+:root {
+    --bg-dark: #060a14;
+    --bg-hover: #16223a;
+    --border: rgba(59, 130, 246, 0.15);
+    --border-hover: rgba(59, 130, 246, 0.4);
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --text-main: #e2e8f0;
+    --text-muted: #64748b;
+    --green: #22c55e;
+}
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+.bg-layer { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.bg-layer::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 75%, rgba(124, 58, 237, 0.14) 0%, transparent 45%);
+}
+#particles-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.navbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 30px;
+    background: rgba(13, 20, 36, 0.75);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+}
+.nav-left { display: flex; align-items: center; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
+.brand-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+}
+.brand-icon svg { width: 18px; height: 18px; fill: none; stroke: white; stroke-width: 2; }
+.nav-center { display: flex; gap: 8px; list-style: none; align-items: center; }
+.nav-center a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 16px; border-radius: 10px;
+    color: var(--text-muted); text-decoration: none;
+    font-size: 14px; font-weight: 600;
+    transition: 0.2s; cursor: pointer;
+}
+.nav-center a:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
+.nav-center a.active { color: white; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); }
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.lang-switch {
+    display: flex; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 3px; gap: 2px;
+}
+.lang-btn {
+    padding: 6px 12px; border-radius: 7px;
+    background: transparent; border: none;
+    color: var(--text-muted); font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: 0.2s; font-family: inherit;
+}
+.lang-btn.active { background: var(--accent); color: white; }
+.theme-switch { background: transparent; border: none; cursor: pointer; padding: 0; }
+.theme-switch-track {
+    position: relative; width: 60px; height: 30px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 8px; transition: 0.3s;
+}
+.theme-icon { font-size: 12px; z-index: 2; opacity: 0.6; line-height: 1; }
+.theme-switch-thumb {
+    position: absolute; top: 3px; left: 3px;
+    width: 22px; height: 22px;
+    background: linear-gradient(135deg, #3b82f6, #1e40af);
+    border-radius: 50%;
+    transition: 0.3s;
+    z-index: 1;
+}
+body.light-theme .theme-switch-thumb { left: 33px; background: linear-gradient(135deg, #f59e0b, #d97706); }
+.sign-in-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 18px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; color: white;
+    font-size: 14px; font-weight: 700;
+    text-decoration: none; transition: 0.25s;
+}
+.sign-in-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.sign-in-btn:hover { background: linear-gradient(135deg, #5865F2, #7c3aed); border-color: transparent; }
+.container { max-width: 1200px; margin: 0 auto; padding: 25px 30px; position: relative; }
+.home-hero { padding: 70px 40px 50px; text-align: left; max-width: 900px; }
+.home-title {
+    font-size: 64px; font-weight: 900;
+    letter-spacing: -2px; line-height: 1.05;
+    color: white; margin-bottom: 25px;
+}
+.home-underline { width: 240px; height: 2px; background: rgba(255,255,255,0.5); margin-bottom: 35px; }
+.home-desc {
+    font-family: 'Courier New', monospace;
+    font-size: 15px; color: #94a3b8;
+    line-height: 2; letter-spacing: 1px;
+    margin-bottom: 45px; max-width: 680px;
+    text-transform: uppercase;
+}
+.home-buttons { display: flex; gap: 20px; flex-wrap: wrap; }
+.btn-solid {
+    display: inline-block; padding: 20px 45px;
+    background: white; color: #0a0a0a;
+    font-family: 'Courier New', monospace;
+    font-size: 14px; font-weight: 900;
+    letter-spacing: 3px; text-transform: uppercase;
+    border: 2px solid white; cursor: pointer;
+    transition: 0.25s; text-decoration: none;
+    border-radius: 14px;
+}
+.btn-solid:hover { background: transparent; color: white; }
+.btn-outline {
+    display: inline-block; padding: 20px 45px;
+    background: transparent; color: white;
+    font-family: 'Courier New', monospace;
+    font-size: 14px; font-weight: 900;
+    letter-spacing: 3px; text-transform: uppercase;
+    border: 2px solid white; cursor: pointer;
+    transition: 0.25s; text-decoration: none;
+    border-radius: 14px;
+}
+.btn-outline:hover { background: white; color: #0a0a0a; }
+.layout { display: grid; grid-template-columns: 260px 1fr; gap: 25px; }
+.sidebar {
+    background: rgba(13, 20, 36, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 12px;
+    height: fit-content; position: sticky; top: 90px;
+}
+.sidebar-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border-radius: 12px;
+    cursor: pointer; transition: 0.2s;
+    margin-bottom: 4px; text-decoration: none;
+    color: inherit; border: 1px solid transparent;
+}
+.sidebar-item:hover { background: var(--bg-hover); }
+.sidebar-item.active {
+    background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.03));
+    border-color: var(--border-hover);
+}
+.sidebar-icon { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+.sidebar-icon svg { width: 100%; height: 100%; fill: currentColor; }
+.sidebar-text { display: flex; flex-direction: column; }
+.sidebar-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
+.sidebar-desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.sidebar-item.status .sidebar-icon { color: var(--green); }
+.sidebar-item.status .sidebar-desc { color: var(--green); font-weight: 600; }
+.section { display: none; }
+.section.active { display: block; }
+.product-section { display: none; }
+.product-section.active { display: block; }
+.content { display: flex; flex-direction: column; gap: 30px; }
+.section-title {
+    font-size: 22px; font-weight: 700;
+    margin-bottom: 5px;
+    display: flex; align-items: center; gap: 10px;
+}
+.section-title svg { width: 24px; height: 24px; fill: var(--accent); }
+.section-sub { color: var(--text-muted); font-size: 13px; margin-bottom: 18px; }
+.product-card {
+    background: rgba(13, 20, 36, 0.75);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 24px;
+    position: relative;
+    display: flex; flex-direction: column;
+    max-width: 700px; margin: 0 auto;
+}
+.product-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 18px 18px 0 0; }
+.product-card.internal-card::before { background: linear-gradient(90deg, #ef4444, #7c2d12); }
+.product-card.external-card::before { background: linear-gradient(90deg, #3b82f6, #1e40af); }
+.product-card.macro-card::before { background: linear-gradient(90deg, #a855f7, #7c3aed); }
+.product-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.product-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.product-icon svg { width: 24px; height: 24px; fill: white; }
+.product-icon.internal { background: linear-gradient(135deg, #ef4444, #991b1b); }
+.product-icon.external { background: linear-gradient(135deg, #3b82f6, #1e40af); }
+.product-icon.macro { background: linear-gradient(135deg, #a855f7, #7c3aed); }
+.product-name { font-size: 18px; font-weight: 700; }
+.product-type { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.product-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
+.features-list { list-style: none; margin-bottom: 20px; }
+.features-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #cbd5e1; padding: 5px 0; }
+.features-list li svg { width: 14px; height: 14px; fill: var(--green); flex-shrink: 0; }
+.status-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 15px; }
+.status-tag {
+    font-size: 10px; padding: 4px 10px;
+    border-radius: 6px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.status-tag.undetected { background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid rgba(34,197,94,0.5); }
+.status-tag.updated { background: rgba(59,130,246,0.15); color: var(--accent-hover); border: 1px solid rgba(59,130,246,0.3); }
+.status-tag.hwid { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+.pricing { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.price-option {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(17, 26, 46, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.price-option-left { display: flex; flex-direction: column; }
+.price-option-duration { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.price-option-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.price-option-right { display: flex; align-items: center; gap: 12px; }
+.price-value { font-size: 18px; font-weight: 800; color: white; white-space: nowrap; }
+.price-value small { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.buy-mini { padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; color: white; white-space: nowrap; }
+.buy-mini.internal { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+.buy-mini.external { background: linear-gradient(135deg, #3b82f6, #1e40af); }
+.buy-mini.macro { background: linear-gradient(135deg, #a855f7, #7c3aed); }
+.buy-mini:hover { filter: brightness(1.2); }
+body.light-theme {
+    --bg-dark: #f1f5f9;
+    --bg-hover: #e2e8f0;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border: rgba(59, 130, 246, 0.2);
+    --border-hover: rgba(59, 130, 246, 0.5);
+}
+body.light-theme .navbar { background: rgba(255, 255, 255, 0.85); }
+body.light-theme .home-title { color: #0f172a; }
+body.light-theme .home-underline { background: #0f172a; }
+body.light-theme .btn-solid { background: #0f172a; color: white; border-color: #0f172a; }
+body.light-theme .btn-solid:hover { background: transparent; color: #0f172a; }
+body.light-theme .btn-outline { color: #0f172a; border-color: #0f172a; }
+body.light-theme .btn-outline:hover { background: #0f172a; color: white; }
+body.light-theme .sidebar { background: rgba(255, 255, 255, 0.75); }
+body.light-theme .product-card { background: rgba(255, 255, 255, 0.85); }
+body.light-theme .price-option { background: rgba(248, 250, 252, 0.9); }
+body.light-theme .price-value { color: #0f172a; }
+body.light-theme .sign-in-btn { color: #0f172a; border-color: rgba(0,0,0,0.15); }
+</style>
+</head>
+<body>
+
+<div class="bg-layer"><canvas id="particles-canvas"></canvas></div>
+
+<nav class="navbar">
+    <div class="nav-left">
+        <div class="brand">
+            <div class="brand-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+            <span>Phantom</span>
+        </div>
+    </div>
+    <ul class="nav-center">
+        <li><a data-nav="home" class="active" data-i18n="nav_home">Главная</a></li>
+        <li><a data-nav="products" data-i18n="nav_products">Продукты</a></li>
+    </ul>
+    <div class="nav-right">
+        <div class="lang-switch">
+            <button class="lang-btn active" data-lang="ru" type="button">RU</button>
+            <button class="lang-btn" data-lang="en" type="button">EN</button>
+        </div>
+        <button class="theme-switch" id="themeToggle" type="button">
+            <div class="theme-switch-track">
+                <span class="theme-icon sun">☀</span>
+                <span class="theme-icon moon">🌙</span>
+                <div class="theme-switch-thumb"></div>
+            </div>
+        </button>
+        <a href="https://discord.gg/NaswmCxrE" target="_blank" class="sign-in-btn">
+            <svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+            <span data-i18n="signin">Войти</span>
+        </a>
+    </div>
+</nav>
+
+<div class="container">
+    <section id="home" class="section active">
+        <div class="home-hero">
+            <h1 class="home-title">
+                <span data-i18n="hero_line1">Будь лучшим с</span><br>
+                <span data-i18n="hero_line2">Phantom</span>
+            </h1>
+            <div class="home-underline"></div>
+            <p class="home-desc" data-i18n="home_desc">Испытай превосходство в игре с самыми продвинутыми и надёжными решениями.</p>
+            <div class="home-buttons">
+                <a class="btn-solid" data-nav="products" data-i18n="btn_products">ПРОДУКТЫ</a>
+                <a class="btn-outline" href="https://discord.gg/NaswmCxrE" target="_blank" data-i18n="btn_reviews">ДС КАНАЛ</a>
+            </div>
+        </div>
+    </section>
+
+    <section id="products" class="section">
+        <div class="layout">
+            <aside class="sidebar">
+                <a class="sidebar-item active" data-target="internal">
+                    <div class="sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+                    <div class="sidebar-text"><span class="sidebar-title">Internal</span><span class="sidebar-desc" data-i18n="internal_desc">Внутренний чит</span></div>
+                </a>
+                <a class="sidebar-item" data-target="external">
+                    <div class="sidebar-icon"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></div>
+                    <div class="sidebar-text"><span class="sidebar-title">External</span><span class="sidebar-desc" data-i18n="external_desc">Внешний чит</span></div>
+                </a>
+                <a class="sidebar-item" data-target="macro">
+                    <div class="sidebar-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></div>
+                    <div class="sidebar-text"><span class="sidebar-title">Macros</span><span class="sidebar-desc" data-i18n="macro_desc">Новая отдача</span></div>
+                </a>
+                <a class="sidebar-item status" data-target="status">
+                    <div class="sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></div>
+                    <div class="sidebar-text"><span class="sidebar-title" data-i18n="status">Статус</span><span class="sidebar-desc">Undetected</span></div>
+                </a>
+                <a href="https://discord.gg/NaswmCxrE" target="_blank" class="sidebar-item">
+                    <div class="sidebar-icon"><svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg></div>
+                    <div class="sidebar-text"><span class="sidebar-title">Discord</span><span class="sidebar-desc">Наш сервер</span></div>
+                </a>
+            </aside>
+
+            <main class="content">
+
+                <div id="product-internal" class="product-section active">
+                    <div class="section-title">
+                        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                        Internal Rust Devblog
+                    </div>
+                    <div class="section-sub">Внутренний чит — максимальная функциональность</div>
+                    <div class="product-card internal-card">
+                        <div class="product-header">
+                            <div class="product-icon internal"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+                            <div><div class="product-name">Internal</div><div class="product-type">Внутренний чит</div></div>
+                        </div>
+                        <div class="status-tags">
+                            <span class="status-tag undetected">Fully Undetected</span>
+                            <span class="status-tag updated">Updated</span>
+                            <span class="status-tag hwid">HWID Bypass</span>
+                        </div>
+                        <div class="product-desc">Полный обход античитов девблогов. HWID Bypass и Ultimate Trace в комплекте.</div>
+                        <ul class="features-list">
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Обход EAC / BattlEye</li>
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> HWID Bypass</li>
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Ultimate Trace</li>
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Версии 236 — 271</li>
+                        </ul>
+                        <div class="pricing">
+                            <div class="price-option">
+                                <div class="price-option-left"><span class="price-option-duration">7 дней</span><span class="price-option-desc">Быстрый старт</span></div>
+                                <div class="price-option-right"><span class="price-value">250 <small>₽</small></span><a href="https://discord.gg/NaswmCxrE" target="_blank" class="buy-mini internal">Купить</a></div>
+                            </div>
+                            <div class="price-option">
+                                <div class="price-option-left"><span class="price-option-duration">1 месяц</span><span class="price-option-desc">Оптимально</span></div>
+                                <div class="price-option-right"><span class="price-value">1250 <small>₽</small></span><a href="https://discord.gg/NaswmCxrE" target="_blank" class="buy-mini internal">Купить</a></div>
+                            </div>
+                            <div class="price-option">
+                                <div class="price-option-left"><span class="price-option-duration">3 месяца</span><span class="price-option-desc">Выгодно</span></div>
+                                <div class="price-option-right"><span class="price-value">1900 <small>₽</small></span><a href="https://discord.gg/NaswmCxrE" target="_blank" class="buy-mini internal">Купить</a></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="product-external" class="product-section">
+                    <div class="section-title">
+                        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                        External Rust Devblog
+                    </div>
+                    <div class="section-sub">Внешний чит — лёгкий и незаметный</div>
+                    <div class="product-card external-card">
+                        <div class="product-header">
+                            <div class="product-icon external"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></div>
+                            <div><div class="product-name">External</div><div class="product-type">Внешний чит</div></div>
+                        </div>
+                        <div class="status-tags">
+                            <span class="status-tag undetected">Fully Undetected</span>
+                            <span class="status-tag updated">Updated</span>
+                            <span class="status-tag hwid">HWID Bypass</span>
+                        </div>
+                        <div class="product-desc">Внешний чит без инжекта в процесс. Полный обход античитов девблогов.</div>
+                        <ul class="features-list">
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Без инжекта в процесс</li>
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> HWID Bypass</li>
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Ultimate Trace</li>
+                            <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Версии 236 — 271</li>
+                       
